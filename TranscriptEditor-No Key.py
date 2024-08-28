@@ -4,8 +4,8 @@ from tkinter import filedialog, messagebox
 import os
 import openai
 
-# Initialize OpenAI API
-openai.api_key = 'Your-API-Key-Here'
+# Configurable Hosts List
+hosts = ['AJ', 'Harrison']  # Default hosts, more can be added through the GUI
 
 def generate_summary(text, summary_type="short"):
     prompt = "Summarize the following transcript."
@@ -20,9 +20,9 @@ def generate_summary(text, summary_type="short"):
             {"role": "system", "content": prompt},
             {"role": "user", "content": text}
         ],
-        max_tokens=10000 if summary_type == "detailed" else 10000
+        max_tokens=10000 if summary_type == "detailed" else 16384
     )
-    summary = response['choices'][0]['message']['content'].strip()
+    summary = response.choices[0].message['content'].strip()
     return summary
 
 def process_transcript(file_path):
@@ -31,22 +31,19 @@ def process_transcript(file_path):
 
     # Step 1: Remove timecodes
     transcript = re.sub(r'\d{2}:\d{2}:\d{2}\.\d{2}', '', transcript)
-    transcript = re.sub(r'\d{2}:\d{2}\.\d{2}', '', transcript)
 
-    # Step 2: Replace every instance of "designtheeverything" with "'''AJ'''" and "Harrison" with "'''Harrison'''"
-    transcript = transcript.replace("designtheeverything", "'''AJ'''")
-    transcript = transcript.replace("Harrison", "'''Harrison'''")
+    # Step 2: Replace host names with formatted versions
+    for host in hosts:
+        formatted_host = f"'''{host}''':   "
+        transcript = transcript.replace(host, formatted_host)
 
-    # Step 3: Add a colon and three spaces after '''AJ''' and '''Harrison'''
-    transcript = re.sub(r"'''AJ'''", "'''AJ''':   ", transcript)
-    transcript = re.sub(r"'''Harrison'''", "'''Harrison''':   ", transcript)
+    # Step 3: Move <br> before each instance of the formatted host names
+    for host in hosts:
+        formatted_host = f"'''{host}''':   "
+        transcript = re.sub(rf"\n<br>{re.escape(formatted_host)}", f"<br>\n{formatted_host}", transcript)
 
-    # Step 4: Move <br> before each instance of '''AJ''' and '''Harrison'''
-    transcript = re.sub(r"\n<br>'''AJ''':", r"<br>\n'''AJ''':", transcript)
-    transcript = re.sub(r"\n<br>'''Harrison''':", r"<br>\n'''Harrison''':", transcript)
-
-    # Step 5: Speaker Formatting
-    speaker_pattern = re.compile(r"(AJ|Harrison):\n\s*(.+)", re.DOTALL)
+    # Step 4: Speaker Formatting
+    speaker_pattern = re.compile(r"(" + "|".join(re.escape(host) for host in hosts) + r"):\n\s*(.+)", re.DOTALL)
 
     def format_speaker(match):
         speaker = match.group(1)
@@ -64,27 +61,29 @@ def process_transcript(file_path):
 
     transcript = '\n'.join(formatted_lines)
 
-    # Step 6: Remove any lingering <br> after AJ or Harrison names
-    transcript = re.sub(r"('''AJ''':   |'''Harrison''':   )\n<br>", r"\1", transcript)
+    # Step 5: Remove any lingering <br> after host names
+    for host in hosts:
+        formatted_host = f"'''{host}''':   "
+        transcript = re.sub(rf"({re.escape(formatted_host)})\n<br>", r"\1", transcript)
 
-    # Step 7: Generate summaries using ChatGPT API
+    # Step 6: Generate summaries using ChatGPT API
     short_summary = generate_summary(transcript, summary_type="short")
     detailed_summary = generate_summary(transcript, summary_type="detailed")
     
-    # Step 8: Wikimedia Page Preparation with summaries
+    # Step 7: Wikimedia Page Preparation with summaries
     transcript = (f"=TLDR=\n\n{short_summary}\n\n"
                   f"=Links=\n\n"
                   f"=Summary=\n\n{detailed_summary}\n\n"
                   f"=Transcript=\n\n" + transcript)
 
-    # Corrected line to save the processed transcript
+    # Output the processed transcript
     output_file_path = file_path.replace('.txt', '_processed.txt')
     with open(output_file_path, 'w', encoding='utf-8') as file:
         file.write(transcript)
 
     messagebox.showinfo("Success", f"Processed transcript saved to {output_file_path}")
 
-    # Step 9: Open the processed file in the default text editor
+    # Step 8: Open the processed file in the default text editor
     os.startfile(output_file_path)
 
 def select_file():
@@ -93,6 +92,19 @@ def select_file():
         file_label.config(text=f"File loaded: {file_path}")
         start_button.config(state=tk.NORMAL)
         start_button.file_path = file_path
+
+def add_host():
+    new_host = host_entry.get().strip()
+    if new_host and new_host not in hosts:
+        hosts.append(new_host)
+        host_list_label.config(text="Hosts: " + ", ".join(hosts))
+        host_entry.delete(0, tk.END)
+
+def set_api_key():
+    api_key = api_key_entry.get().strip()
+    if api_key:
+        openai.api_key = api_key
+        messagebox.showinfo("API Key Set", "Your OpenAI API key has been set.")
 
 def start_processing():
     file_path = start_button.file_path
@@ -129,6 +141,33 @@ def create_gui():
     # Create a quit button
     quit_button = tk.Button(button_frame, text="Quit", command=window.quit)
     quit_button.pack(side=tk.LEFT, padx=5)
+
+    # Create a label to display the list of hosts
+    global host_list_label
+    host_list_label = tk.Label(window, text="Hosts: " + ", ".join(hosts))
+    host_list_label.pack(pady=5)
+
+    # Create an entry widget to add new hosts
+    global host_entry
+    host_entry = tk.Entry(window)
+    host_entry.pack(pady=5)
+
+    # Create a button to add a new host
+    add_host_button = tk.Button(window, text="Add Host", command=add_host)
+    add_host_button.pack(pady=5)
+
+    # Create a label for the API key entry
+    api_key_label = tk.Label(window, text="Enter your OpenAI API Key:")
+    api_key_label.pack(pady=5)
+
+    # Create an entry widget for the API key
+    global api_key_entry
+    api_key_entry = tk.Entry(window, show="*")  # Masked entry for API key
+    api_key_entry.pack(pady=5)
+
+    # Create a button to set the API key
+    set_api_key_button = tk.Button(window, text="Set API Key", command=set_api_key)
+    set_api_key_button.pack(pady=5)
 
     # Run the GUI loop
     window.mainloop()
