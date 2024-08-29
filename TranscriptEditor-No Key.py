@@ -58,10 +58,6 @@ def generate_summary(text, summary_type="short"):
     return summary
 
 def process_transcript(file_path):
-    status_label.config(text="Processing... Please wait.", fg="red")
-    start_button.config(state=tk.DISABLED)  # Disable the start button
-    window.update_idletasks()
-
     with open(file_path, 'r', encoding='utf-8') as file:
         transcript = file.read()
 
@@ -124,21 +120,34 @@ def process_transcript(file_path):
     with open(output_file_path, 'w', encoding='utf-8') as file:
         file.write(transcript)
 
-    status_label.config(text="Processing complete. File saved.", fg="green")
+    return output_file_path
+
+def select_files():
+    file_paths = filedialog.askopenfilenames(filetypes=[("Text Files", "*.txt")])
+    if file_paths:
+        file_label.config(text=f"{len(file_paths)} files loaded")
+        start_button.config(state=tk.NORMAL)
+        start_button.file_paths = file_paths
+
+def process_transcripts():
+    status_label.config(text="Processing... Please wait.", fg="red")
+    start_button.config(state=tk.DISABLED)  # Disable the start button
     window.update_idletasks()
 
-    messagebox.showinfo("Success", f"Processed transcript saved to {output_file_path}")
+    processed_files = []
+    for file_path in start_button.file_paths:
+        processed_file = process_transcript(file_path)
+        processed_files.append(processed_file)
+
+    status_label.config(text="Processing complete. Files saved.", fg="green")
+    window.update_idletasks()
+
+    messagebox.showinfo("Success", f"Processed transcripts saved. Files: {', '.join(processed_files)}")
     start_button.config(state=tk.NORMAL)  # Re-enable the start button
 
-    # Step 9: Open the processed file in the default text editor
-    os.startfile(output_file_path)
-
-def select_file():
-    file_path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt")])
-    if file_path:
-        file_label.config(text=f"File loaded: {file_path}")
-        start_button.config(state=tk.NORMAL)
-        start_button.file_path = file_path
+    # Open each processed file in the default text editor
+    for file in processed_files:
+        os.startfile(file)
 
 def add_host():
     new_host = host_entry.get().strip()
@@ -164,9 +173,11 @@ def set_api_key():
     api_key = api_key_entry.get().strip()
     if api_key:
         openai.api_key = api_key
-        api_key_status_label.config(text="API Key Set", fg="green")
+        # Display the first 5 characters followed by asterisks
+        display_key = api_key[:5] + '*' * (len(api_key) - 5)
+        api_key_status_label.config(text=f"API Key Set: {display_key}", fg="green")
         window.update_idletasks()
-        messagebox.showinfo("API Key Set", "Your OpenAI API key has been set.")
+        messagebox.showinfo("API Key Set", f"Your OpenAI API key has been set.\n\nDisplayed: {display_key}")
 
 def add_find_replace():
     find_replace_frame = tk.Frame(find_replace_container)
@@ -236,16 +247,6 @@ def reload_settings():
     load_settings()
     messagebox.showinfo("Settings Loaded", "Settings have been reloaded from the JSON file.")
 
-def start_processing():
-    status_label.config(text="Starting processing...", fg="blue")
-    window.update_idletasks()
-    threading.Thread(target=process_transcript_thread).start()
-
-def process_transcript_thread():
-    file_path = start_button.file_path
-    if file_path:
-        process_transcript(file_path)
-
 def create_gui():
     global window, find_replace_container, find_replace_entries, api_key_entry, host_list_label, remove_host_var, remove_host_menu
     window = tk.Tk()
@@ -277,17 +278,17 @@ def create_gui():
     file_frame = tk.LabelFrame(scrollable_frame, text="File Selection", padx=10, pady=10)
     file_frame.pack(padx=10, pady=10, fill="x")
 
-    label = tk.Label(file_frame, text="Select a text file to process:")
+    label = tk.Label(file_frame, text="Select text files to process:")
     label.pack(anchor="w")
 
-    select_button = tk.Button(file_frame, text="Select File", command=select_file)
+    select_button = tk.Button(file_frame, text="Select Files", command=select_files)
     select_button.pack(pady=5)
 
     global file_label
-    file_label = tk.Label(file_frame, text="No file loaded")
+    file_label = tk.Label(file_frame, text="No files loaded")
     file_label.pack(anchor="w")
 
-    ToolTip(file_frame, "Use this section to load the transcript file you want to process.")
+    ToolTip(file_frame, "Use this section to load the transcript files you want to process in bulk.")
 
     # Group: API Key
     api_key_frame = tk.LabelFrame(scrollable_frame, text="API Key", padx=10, pady=10)
@@ -364,7 +365,7 @@ def create_gui():
     status_label.pack(side=tk.LEFT, padx=5)
 
     global start_button
-    start_button = tk.Button(scrollable_frame, text="Start", command=start_processing, state=tk.DISABLED, font=("Arial", 16), height=2, width=20)
+    start_button = tk.Button(scrollable_frame, text="Start", command=process_transcripts, state=tk.DISABLED, font=("Arial", 16), height=2, width=20)
     start_button.pack(pady=20)
 
     ToolTip(actions_frame, "Save your settings or reload them from a JSON file. Start processing when ready.")
