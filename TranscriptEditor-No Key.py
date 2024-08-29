@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import os
 import openai
+import threading
 
 # Configurable Hosts List
 hosts = ['AJ', 'Harrison']  # Default hosts, more can be added through the GUI
@@ -14,35 +15,47 @@ def generate_summary(text, summary_type="short"):
     elif summary_type == "short":
         prompt = "Summarize the following transcript in three sentences."
 
+    max_tokens = 16384 if summary_type == "detailed" else 10000
+
     response = openai.ChatCompletion.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": text}
         ],
-        max_tokens=10000 if summary_type == "detailed" else 16384
+        max_tokens=max_tokens
     )
     summary = response.choices[0].message['content'].strip()
     return summary
 
 def process_transcript(file_path):
+    status_label.config(text="Processing... Please wait.", fg="red")
+    start_button.config(state=tk.DISABLED)  # Disable the start button
+    window.update_idletasks()
+
     with open(file_path, 'r', encoding='utf-8') as file:
         transcript = file.read()
 
     # Step 1: Remove timecodes
     transcript = re.sub(r'\d{2}:\d{2}:\d{2}\.\d{2}', '', transcript)
 
-    # Step 2: Replace host names with formatted versions
+    # Step 2: Find and replace words based on user input
+    find_word = find_entry.get().strip()
+    replace_word = replace_entry.get().strip()
+    if find_word:
+        transcript = transcript.replace(find_word, replace_word)
+
+    # Step 3: Replace host names with formatted versions
     for host in hosts:
         formatted_host = f"'''{host}''':   "
         transcript = transcript.replace(host, formatted_host)
 
-    # Step 3: Move <br> before each instance of the formatted host names
+    # Step 4: Move <br> before each instance of the formatted host names
     for host in hosts:
         formatted_host = f"'''{host}''':   "
         transcript = re.sub(rf"\n<br>{re.escape(formatted_host)}", f"<br>\n{formatted_host}", transcript)
 
-    # Step 4: Speaker Formatting
+    # Step 5: Speaker Formatting
     speaker_pattern = re.compile(r"(" + "|".join(re.escape(host) for host in hosts) + r"):\n\s*(.+)", re.DOTALL)
 
     def format_speaker(match):
@@ -61,16 +74,16 @@ def process_transcript(file_path):
 
     transcript = '\n'.join(formatted_lines)
 
-    # Step 5: Remove any lingering <br> after host names
+    # Step 6: Remove any lingering <br> after host names
     for host in hosts:
         formatted_host = f"'''{host}''':   "
         transcript = re.sub(rf"({re.escape(formatted_host)})\n<br>", r"\1", transcript)
 
-    # Step 6: Generate summaries using ChatGPT API
+    # Step 7: Generate summaries using ChatGPT API
     short_summary = generate_summary(transcript, summary_type="short")
     detailed_summary = generate_summary(transcript, summary_type="detailed")
     
-    # Step 7: Wikimedia Page Preparation with summaries
+    # Step 8: Wikimedia Page Preparation with summaries
     transcript = (f"=TLDR=\n\n{short_summary}\n\n"
                   f"=Links=\n\n"
                   f"=Summary=\n\n{detailed_summary}\n\n"
@@ -81,9 +94,13 @@ def process_transcript(file_path):
     with open(output_file_path, 'w', encoding='utf-8') as file:
         file.write(transcript)
 
-    messagebox.showinfo("Success", f"Processed transcript saved to {output_file_path}")
+    status_label.config(text="Processing complete. File saved.", fg="green")
+    window.update_idletasks()
 
-    # Step 8: Open the processed file in the default text editor
+    messagebox.showinfo("Success", f"Processed transcript saved to {output_file_path}")
+    start_button.config(state=tk.NORMAL)  # Re-enable the start button
+
+    # Step 9: Open the processed file in the default text editor
     os.startfile(output_file_path)
 
 def select_file():
@@ -104,43 +121,54 @@ def set_api_key():
     api_key = api_key_entry.get().strip()
     if api_key:
         openai.api_key = api_key
+        api_key_status_label.config(text="API Key Set", fg="green")
+        window.update_idletasks()
         messagebox.showinfo("API Key Set", "Your OpenAI API key has been set.")
 
 def start_processing():
+    status_label.config(text="Starting processing...", fg="blue")
+    window.update_idletasks()
+    threading.Thread(target=process_transcript_thread).start()
+
+def process_transcript_thread():
     file_path = start_button.file_path
     if file_path:
         process_transcript(file_path)
 
 def create_gui():
-    # Create the main window
+    global window
     window = tk.Tk()
     window.title("Transcript Processor")
 
-    # Create a label
+    # Create a label for file selection
     label = tk.Label(window, text="Select a text file to process:")
     label.pack(pady=10)
+
+    # Create a button to select a file
+    select_button = tk.Button(window, text="Select File", command=select_file)
+    select_button.pack(pady=5)
 
     # Create a file label to show the selected file
     global file_label
     file_label = tk.Label(window, text="No file loaded")
     file_label.pack(pady=5)
 
-    # Create a frame to hold the buttons in one row
-    button_frame = tk.Frame(window)
-    button_frame.pack(pady=10)
+    # Create a frame to hold the find and replace widgets
+    find_replace_frame = tk.Frame(window)
+    find_replace_frame.pack(pady=10)
 
-    # Create a button to select a file
-    select_button = tk.Button(button_frame, text="Select File", command=select_file)
-    select_button.pack(side=tk.LEFT, padx=5)
+    # Create the find and replace entry fields and labels
+    find_label = tk.Label(find_replace_frame, text="Find:")
+    find_label.pack(side=tk.LEFT, padx=5)
+    global find_entry
+    find_entry = tk.Entry(find_replace_frame)
+    find_entry.pack(side=tk.LEFT, padx=5)
 
-    # Create a start button, initially disabled
-    global start_button
-    start_button = tk.Button(button_frame, text="Start", command=start_processing, state=tk.DISABLED)
-    start_button.pack(side=tk.LEFT, padx=5)
-
-    # Create a quit button
-    quit_button = tk.Button(button_frame, text="Quit", command=window.quit)
-    quit_button.pack(side=tk.LEFT, padx=5)
+    replace_label = tk.Label(find_replace_frame, text="Replace with:")
+    replace_label.pack(side=tk.LEFT, padx=5)
+    global replace_entry
+    replace_entry = tk.Entry(find_replace_frame)
+    replace_entry.pack(side=tk.LEFT, padx=5)
 
     # Create a label to display the list of hosts
     global host_list_label
@@ -168,6 +196,21 @@ def create_gui():
     # Create a button to set the API key
     set_api_key_button = tk.Button(window, text="Set API Key", command=set_api_key)
     set_api_key_button.pack(pady=5)
+
+    # Create a label to show API key status
+    global api_key_status_label
+    api_key_status_label = tk.Label(window, text="")
+    api_key_status_label.pack(pady=5)
+
+    # Create a label to show the processing status
+    global status_label
+    status_label = tk.Label(window, text="")
+    status_label.pack(pady=10)
+
+    # Create a large "Start" button at the bottom
+    global start_button
+    start_button = tk.Button(window, text="Start", command=start_processing, state=tk.DISABLED, font=("Arial", 16), height=2, width=20)
+    start_button.pack(pady=20)
 
     # Run the GUI loop
     window.mainloop()
