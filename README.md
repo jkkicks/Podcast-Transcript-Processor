@@ -15,7 +15,6 @@ This script processes transcript text files for Wikimedia style pages by removin
 - Python 3.x
 - `openai`
 - `tkinter` (usually included with Python)
-- `requests` (if needed for additional web-related tasks)
 
 ## Installation
 
