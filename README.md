@@ -1,6 +1,6 @@
 # Transcript Processor Script
 
-This script processes transcript text files by removing timecodes, replacing specified words or phrases, formatting dialogue, and generating summaries using the OpenAI API. The script is designed to be flexible, allowing users to add or remove hosts dynamically through a graphical user interface (GUI).
+This script processes transcript text files for Wikimedia style pages by removing timecodes, replacing specified words or phrases, formatting dialogue, and generating summaries using the OpenAI API. The script is designed to be flexible, allowing users to add or remove hosts dynamically through a graphical user interface (GUI).
 
 ## Features
 
