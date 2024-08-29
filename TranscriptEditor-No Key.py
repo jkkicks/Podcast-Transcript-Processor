@@ -121,7 +121,20 @@ def add_host():
     if new_host and new_host not in hosts:
         hosts.append(new_host)
         host_list_label.config(text="Hosts: " + ", ".join(hosts))
+        update_remove_host_dropdown()
         host_entry.delete(0, tk.END)
+
+def remove_host():
+    selected_host = remove_host_var.get()
+    if selected_host in hosts:
+        hosts.remove(selected_host)
+        host_list_label.config(text="Hosts: " + ", ".join(hosts))
+        update_remove_host_dropdown()
+
+def update_remove_host_dropdown():
+    remove_host_menu['menu'].delete(0, 'end')
+    for host in hosts:
+        remove_host_menu['menu'].add_command(label=host, command=tk._setit(remove_host_var, host))
 
 def set_api_key():
     api_key = api_key_entry.get().strip()
@@ -168,8 +181,10 @@ def load_settings():
             global hosts
             hosts = settings.get("hosts", hosts)
             host_list_label.config(text="Hosts: " + ", ".join(hosts))
+            update_remove_host_dropdown()
 
             # Load API key
+            api_key_entry.delete(0, tk.END)
             api_key_entry.insert(0, settings.get("api_key", ""))
 
             # Load find/replace pairs
@@ -177,6 +192,10 @@ def load_settings():
                 add_find_replace()
                 find_replace_entries[-1][0].insert(0, pair["find"])
                 find_replace_entries[-1][1].insert(0, pair["replace"])
+
+def reload_settings():
+    load_settings()
+    messagebox.showinfo("Settings Loaded", "Settings have been reloaded from the JSON file.")
 
 def start_processing():
     status_label.config(text="Starting processing...", fg="blue")
@@ -189,7 +208,7 @@ def process_transcript_thread():
         process_transcript(file_path)
 
 def create_gui():
-    global window, find_replace_container, find_replace_entries, api_key_entry, host_list_label
+    global window, find_replace_container, find_replace_entries, api_key_entry, host_list_label, remove_host_var, remove_host_menu
     window = tk.Tk()
     window.title("Transcript Processor")
 
@@ -241,6 +260,16 @@ def create_gui():
     add_host_button = tk.Button(host_frame, text="Add Host", command=add_host)
     add_host_button.pack(pady=5)
 
+    # Remove host dropdown and button
+    remove_host_var = tk.StringVar(host_frame)
+    remove_host_var.set(hosts[0])  # Default value
+
+    remove_host_menu = tk.OptionMenu(host_frame, remove_host_var, *hosts)
+    remove_host_menu.pack(pady=5)
+
+    remove_host_button = tk.Button(host_frame, text="Remove Host", command=remove_host)
+    remove_host_button.pack(pady=5)
+
     # Group: Find/Replace
     find_replace_container = tk.LabelFrame(window, text="Find and Replace", padx=10, pady=10)
     find_replace_container.pack(padx=10, pady=10, fill="x")
@@ -254,6 +283,9 @@ def create_gui():
 
     save_settings_button = tk.Button(actions_frame, text="Save Settings", command=save_settings)
     save_settings_button.pack(side=tk.LEFT, padx=5)
+
+    load_json_button = tk.Button(actions_frame, text="Load from JSON", command=reload_settings)
+    load_json_button.pack(side=tk.LEFT, padx=5)
 
     global status_label
     status_label = tk.Label(actions_frame, text="")
