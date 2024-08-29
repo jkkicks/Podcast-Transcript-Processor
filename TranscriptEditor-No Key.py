@@ -5,12 +5,36 @@ import os
 import openai
 import threading
 import json
+from tkinter import ttk
 
 # Configurable Hosts List
 hosts = ['AJ', 'Harrison']  # Default hosts, more can be added through the GUI
 
 # Path to the JSON file for storing settings
 settings_file = 'transcript_processor_settings.json'
+
+# Tooltip class
+class ToolTip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip = None
+        self.widget.bind("<Enter>", self.show_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
+
+    def show_tooltip(self, event=None):
+        x = self.widget.winfo_rootx() + self.widget.winfo_width() + 10
+        y = self.widget.winfo_rooty() + 10
+        self.tooltip = tk.Toplevel(self.widget)
+        self.tooltip.wm_overrideredirect(True)
+        self.tooltip.geometry(f"+{x}+{y}")
+        label = tk.Label(self.tooltip, text=self.text, background="#ffffe0", relief="solid", borderwidth=1, padx=5, pady=3)
+        label.pack()
+
+    def hide_tooltip(self, event=None):
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
 
 def generate_summary(text, summary_type="short"):
     prompt = "Summarize the following transcript."
@@ -45,7 +69,7 @@ def process_transcript(file_path):
     transcript = re.sub(r'\d{2}:\d{2}:\d{2}\.\d{2}|\d{2}:\d{2}\.\d{2}', '', transcript)
 
     # Step 2: Find and replace words based on user input
-    for find_entry, replace_entry in find_replace_entries:
+    for find_entry, replace_entry, _ in find_replace_entries:
         find_word = find_entry.get().strip()
         replace_word = replace_entry.get().strip()
         if find_word:
@@ -146,7 +170,7 @@ def set_api_key():
 
 def add_find_replace():
     find_replace_frame = tk.Frame(find_replace_container)
-    find_replace_frame.pack(pady=5)
+    find_replace_frame.pack(fill="x", pady=5)
 
     find_label = tk.Label(find_replace_frame, text="Find:")
     find_label.pack(side=tk.LEFT, padx=5)
@@ -158,10 +182,17 @@ def add_find_replace():
     replace_entry = tk.Entry(find_replace_frame)
     replace_entry.pack(side=tk.LEFT, padx=5)
 
-    find_replace_entries.append((find_entry, replace_entry))
+    remove_button = tk.Button(find_replace_frame, text="Remove", command=lambda: remove_find_replace(find_replace_frame))
+    remove_button.pack(side=tk.LEFT, padx=5)
+
+    find_replace_entries.append((find_entry, replace_entry, find_replace_frame))
+
+def remove_find_replace(frame):
+    frame.destroy()
+    find_replace_entries[:] = [entry for entry in find_replace_entries if entry[2] != frame]
 
 def clear_find_replace_entries():
-    for frame in find_replace_container.winfo_children():
+    for _, _, frame in find_replace_entries:
         frame.destroy()
     find_replace_entries.clear()
 
@@ -188,6 +219,19 @@ def load_settings():
                 find_replace_entries[-1][0].insert(0, pair["find"])
                 find_replace_entries[-1][1].insert(0, pair["replace"])
 
+def save_settings():
+    settings = {
+        "hosts": hosts,
+        "api_key": api_key_entry.get().strip(),
+        "find_replace": [
+            {"find": find_entry.get().strip(), "replace": replace_entry.get().strip()}
+            for find_entry, replace_entry, _ in find_replace_entries
+        ]
+    }
+    with open(settings_file, 'w') as f:
+        json.dump(settings, f)
+    messagebox.showinfo("Settings Saved", "Settings have been saved to the JSON file.")
+
 def reload_settings():
     load_settings()
     messagebox.showinfo("Settings Loaded", "Settings have been reloaded from the JSON file.")
@@ -206,12 +250,31 @@ def create_gui():
     global window, find_replace_container, find_replace_entries, api_key_entry, host_list_label, remove_host_var, remove_host_menu
     window = tk.Tk()
     window.title("Transcript Processor")
-    window.geometry("800x600")  # Set the initial window size to be about twice as wide
+    window.geometry("800x700")  # Set the initial window size
+
+    # Create a scrollbar and canvas for the main content
+    main_frame = tk.Frame(window)
+    main_frame.pack(fill="both", expand=True)
+
+    canvas = tk.Canvas(main_frame)
+    canvas.pack(side="left", fill="both", expand=True)
+
+    scrollbar = tk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+    scrollbar.pack(side="right", fill="y")
+
+    scrollable_frame = tk.Frame(canvas)
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
+
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
 
     find_replace_entries = []
 
     # Group: File Selection
-    file_frame = tk.LabelFrame(window, text="File Selection", padx=10, pady=10)
+    file_frame = tk.LabelFrame(scrollable_frame, text="File Selection", padx=10, pady=10)
     file_frame.pack(padx=10, pady=10, fill="x")
 
     label = tk.Label(file_frame, text="Select a text file to process:")
@@ -224,8 +287,10 @@ def create_gui():
     file_label = tk.Label(file_frame, text="No file loaded")
     file_label.pack(anchor="w")
 
+    ToolTip(file_frame, "Use this section to load the transcript file you want to process.")
+
     # Group: API Key
-    api_key_frame = tk.LabelFrame(window, text="API Key", padx=10, pady=10)
+    api_key_frame = tk.LabelFrame(scrollable_frame, text="API Key", padx=10, pady=10)
     api_key_frame.pack(padx=10, pady=10, fill="x")
 
     api_key_label = tk.Label(api_key_frame, text="Enter your OpenAI API Key:")
@@ -242,8 +307,10 @@ def create_gui():
     api_key_status_label = tk.Label(api_key_frame, text="")
     api_key_status_label.pack(anchor="w")
 
+    ToolTip(api_key_frame, "Enter and set your OpenAI API key to enable processing with the GPT-4o-mini model.")
+
     # Group: Hosts
-    host_frame = tk.LabelFrame(window, text="Hosts", padx=10, pady=10)
+    host_frame = tk.LabelFrame(scrollable_frame, text="Hosts", padx=10, pady=10)
     host_frame.pack(padx=10, pady=10, fill="x")
 
     host_list_label = tk.Label(host_frame, text="Hosts: " + ", ".join(hosts))
@@ -271,15 +338,19 @@ def create_gui():
     remove_host_button = tk.Button(remove_host_frame, text="Remove Host", command=remove_host)
     remove_host_button.pack(side=tk.LEFT, padx=5)
 
+    ToolTip(host_frame, "Manage the list of hosts in the transcript, adding or removing as needed.")
+
     # Group: Find/Replace
-    find_replace_container = tk.LabelFrame(window, text="Find and Replace", padx=10, pady=10)
+    find_replace_container = tk.LabelFrame(scrollable_frame, text="Find and Replace", padx=10, pady=10)
     find_replace_container.pack(padx=10, pady=10, fill="x")
 
     add_find_replace_button = tk.Button(find_replace_container, text="Add Find/Replace", command=add_find_replace)
     add_find_replace_button.pack(pady=5)
 
+    ToolTip(find_replace_container, "Add find/replace pairs to process specific words or phrases in the transcript.")
+
     # Group: Actions
-    actions_frame = tk.Frame(window, padx=10, pady=10)
+    actions_frame = tk.Frame(scrollable_frame, padx=10, pady=10)
     actions_frame.pack(padx=10, pady=10, fill="x")
 
     save_settings_button = tk.Button(actions_frame, text="Save Settings", command=save_settings)
@@ -293,8 +364,10 @@ def create_gui():
     status_label.pack(side=tk.LEFT, padx=5)
 
     global start_button
-    start_button = tk.Button(window, text="Start", command=start_processing, state=tk.DISABLED, font=("Arial", 16), height=2, width=20)
+    start_button = tk.Button(scrollable_frame, text="Start", command=start_processing, state=tk.DISABLED, font=("Arial", 16), height=2, width=20)
     start_button.pack(pady=20)
+
+    ToolTip(actions_frame, "Save your settings or reload them from a JSON file. Start processing when ready.")
 
     # Load settings after defining necessary widgets
     load_settings()
