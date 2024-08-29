@@ -4,9 +4,13 @@ from tkinter import filedialog, messagebox
 import os
 import openai
 import threading
+import json
 
 # Configurable Hosts List
 hosts = ['AJ', 'Harrison']  # Default hosts, more can be added through the GUI
+
+# Path to the JSON file for storing settings
+settings_file = 'transcript_processor_settings.json'
 
 def generate_summary(text, summary_type="short"):
     prompt = "Summarize the following transcript."
@@ -15,7 +19,8 @@ def generate_summary(text, summary_type="short"):
     elif summary_type == "short":
         prompt = "Summarize the following transcript in three sentences."
 
-    max_tokens = 16384 if summary_type == "detailed" else 10000
+    # Flip the max tokens for detailed and standard summaries
+    max_tokens = 10000 if summary_type == "detailed" else 16384
 
     response = openai.ChatCompletion.create(
         model="gpt-4o-mini",
@@ -37,13 +42,14 @@ def process_transcript(file_path):
         transcript = file.read()
 
     # Step 1: Remove timecodes
-    transcript = re.sub(r'\d{2}:\d{2}:\d{2}\.\d{2}', '', transcript)
+    transcript = re.sub(r'\d{2}:\d{2}:\d{2}\.\d{2}|\d{2}:\d{2}\.\d{2}', '', transcript)
 
     # Step 2: Find and replace words based on user input
-    find_word = find_entry.get().strip()
-    replace_word = replace_entry.get().strip()
-    if find_word:
-        transcript = transcript.replace(find_word, replace_word)
+    for find_entry, replace_entry in find_replace_entries:
+        find_word = find_entry.get().strip()
+        replace_word = replace_entry.get().strip()
+        if find_word:
+            transcript = transcript.replace(find_word, replace_word)
 
     # Step 3: Replace host names with formatted versions
     for host in hosts:
@@ -125,6 +131,50 @@ def set_api_key():
         window.update_idletasks()
         messagebox.showinfo("API Key Set", "Your OpenAI API key has been set.")
 
+def add_find_replace():
+    find_label = tk.Label(find_replace_frame, text="Find:")
+    find_label.pack(side=tk.LEFT, padx=5)
+    find_entry = tk.Entry(find_replace_frame)
+    find_entry.pack(side=tk.LEFT, padx=5)
+
+    replace_label = tk.Label(find_replace_frame, text="Replace with:")
+    replace_label.pack(side=tk.LEFT, padx=5)
+    replace_entry = tk.Entry(find_replace_frame)
+    replace_entry.pack(side=tk.LEFT, padx=5)
+
+    find_replace_entries.append((find_entry, replace_entry))
+
+def save_settings():
+    settings = {
+        "hosts": hosts,
+        "api_key": api_key_entry.get().strip(),
+        "find_replace": [
+            {"find": find_entry.get().strip(), "replace": replace_entry.get().strip()}
+            for find_entry, replace_entry in find_replace_entries
+        ]
+    }
+    with open(settings_file, 'w') as f:
+        json.dump(settings, f)
+    messagebox.showinfo("Settings Saved", "Settings have been saved to the JSON file.")
+
+def load_settings():
+    if os.path.exists(settings_file):
+        with open(settings_file, 'r') as f:
+            settings = json.load(f)
+            # Load hosts
+            global hosts
+            hosts = settings.get("hosts", hosts)
+            host_list_label.config(text="Hosts: " + ", ".join(hosts))
+
+            # Load API key
+            api_key_entry.insert(0, settings.get("api_key", ""))
+
+            # Load find/replace pairs
+            for pair in settings.get("find_replace", []):
+                add_find_replace()
+                find_replace_entries[-1][0].insert(0, pair["find"])
+                find_replace_entries[-1][1].insert(0, pair["replace"])
+
 def start_processing():
     status_label.config(text="Starting processing...", fg="blue")
     window.update_idletasks()
@@ -136,9 +186,14 @@ def process_transcript_thread():
         process_transcript(file_path)
 
 def create_gui():
-    global window
+    global window, find_replace_frame, find_replace_entries, api_key_entry, host_list_label
     window = tk.Tk()
     window.title("Transcript Processor")
+
+    find_replace_entries = []
+
+    # Load settings from JSON file
+    load_settings()
 
     # Create a label for file selection
     label = tk.Label(window, text="Select a text file to process:")
@@ -157,21 +212,11 @@ def create_gui():
     find_replace_frame = tk.Frame(window)
     find_replace_frame.pack(pady=10)
 
-    # Create the find and replace entry fields and labels
-    find_label = tk.Label(find_replace_frame, text="Find:")
-    find_label.pack(side=tk.LEFT, padx=5)
-    global find_entry
-    find_entry = tk.Entry(find_replace_frame)
-    find_entry.pack(side=tk.LEFT, padx=5)
-
-    replace_label = tk.Label(find_replace_frame, text="Replace with:")
-    replace_label.pack(side=tk.LEFT, padx=5)
-    global replace_entry
-    replace_entry = tk.Entry(find_replace_frame)
-    replace_entry.pack(side=tk.LEFT, padx=5)
+    # Create a button to add more find/replace pairs
+    add_find_replace_button = tk.Button(window, text="Add Find/Replace", command=add_find_replace)
+    add_find_replace_button.pack(pady=10)
 
     # Create a label to display the list of hosts
-    global host_list_label
     host_list_label = tk.Label(window, text="Hosts: " + ", ".join(hosts))
     host_list_label.pack(pady=5)
 
@@ -196,6 +241,10 @@ def create_gui():
     # Create a button to set the API key
     set_api_key_button = tk.Button(window, text="Set API Key", command=set_api_key)
     set_api_key_button.pack(pady=5)
+
+    # Create a button to save settings to a JSON file
+    save_settings_button = tk.Button(window, text="Save Settings", command=save_settings)
+    save_settings_button.pack(pady=10)
 
     # Create a label to show API key status
     global api_key_status_label
