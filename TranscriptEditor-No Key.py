@@ -3,12 +3,11 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import os
 import openai
-import threading
 import json
 from tkinter import ttk
 
 # Configurable Hosts List
-hosts = ['AJ', 'Harrison']  # Default hosts, more can be added through the GUI
+hosts = []  # No hard-coded hosts, more can be added through the GUI
 
 # Path to the JSON file for storing settings
 settings_file = 'transcript_processor_settings.json'
@@ -74,36 +73,18 @@ def process_transcript(file_path):
     # Step 3: Replace host names with formatted versions
     for host in hosts:
         formatted_host = f"'''{host}''':   "
-        transcript = transcript.replace(host, formatted_host)
+        transcript = re.sub(rf"\b{host}\b", formatted_host, transcript)
 
-    # Step 4: Move <br> before each instance of the formatted host names
+    # Step 4: Ensure the host names are followed by their dialogue on the same line
+    transcript = re.sub(rf"(?<={formatted_host})\s*\n+", " ", transcript)
+
+    # Step 5: Add <br> at the beginning of each line that starts with a host's name
     for host in hosts:
         formatted_host = f"'''{host}''':   "
-        transcript = re.sub(rf"\n<br>{re.escape(formatted_host)}", f"<br>\n{formatted_host}", transcript)
+        transcript = re.sub(rf"(?<!<br>)({re.escape(formatted_host)})", r"<br>\1", transcript)
 
-    # Step 5: Speaker Formatting
-    speaker_pattern = re.compile(r"(" + "|".join(re.escape(host) for host in hosts) + r"):\n\s*(.+)", re.DOTALL)
-
-    def format_speaker(match):
-        speaker = match.group(1)
-        dialogue = match.group(2).replace('\n', ' ').strip()
-        return f"'''{speaker}''':   {dialogue}"
-
-    transcript = re.sub(speaker_pattern, format_speaker, transcript)
-
-    # Add <br> at the beginning of every line
-    lines = transcript.split('\n')
-    formatted_lines = []
-    for line in lines:
-        if line.strip():  # Ignore lines that only contain whitespace
-            formatted_lines.append(f"<br>{line}")
-
-    transcript = '\n'.join(formatted_lines)
-
-    # Step 6: Remove any lingering <br> after host names
-    for host in hosts:
-        formatted_host = f"'''{host}''':   "
-        transcript = re.sub(rf"({re.escape(formatted_host)})\n<br>", r"\1", transcript)
+    # Step 6: Remove any extra newlines between host sections
+    transcript = re.sub(r"\n{2,}", "\n", transcript)
 
     # Step 7: Generate summaries using ChatGPT API
     short_summary = generate_summary(transcript, summary_type="short")
@@ -121,6 +102,7 @@ def process_transcript(file_path):
         file.write(transcript)
 
     return output_file_path
+
 
 def select_files():
     file_paths = filedialog.askopenfilenames(filetypes=[("Text Files", "*.txt")])
@@ -331,9 +313,8 @@ def create_gui():
     remove_host_frame.grid_columnconfigure(0, weight=1)
 
     remove_host_var = tk.StringVar(host_frame)
-    remove_host_var.set(hosts[0])  # Default value
-
-    remove_host_menu = tk.OptionMenu(remove_host_frame, remove_host_var, *hosts)
+    remove_host_var.set(hosts[0] if hosts else '')  # Set the first host as default or empty if no hosts
+    remove_host_menu = tk.OptionMenu(remove_host_frame, remove_host_var, *(hosts if hosts else [""]))
     remove_host_menu.grid(row=0, column=0, sticky="ew")
 
     remove_host_button = tk.Button(remove_host_frame, text="Remove Host", command=remove_host)
