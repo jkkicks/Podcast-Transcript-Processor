@@ -169,32 +169,31 @@ def update_remove_host_dropdown():
     for host in hosts:
         remove_host_menu['menu'].add_command(label=host, command=tk._setit(remove_host_var, host))
 
-def set_api_key():
-    api_key = api_key_entry.get().strip()
-    if api_key:
-        openai.api_key = api_key
-        # Display the first 5 characters followed by asterisks
-        display_key = api_key[:5] + '*' * (len(api_key) - 5)
-        api_key_status_label.config(text=f"API Key Set: {display_key}", fg="green")
-        window.update_idletasks()
-        messagebox.showinfo("API Key Set", f"Your OpenAI API key has been set.\n\nDisplayed: {display_key}")
+def set_api_key(api_key):
+    openai.api_key = api_key
+    display_key = api_key[:5] + '*' * (len(api_key) - 5)
+    api_key_status_label.config(text=f"API Key Set: {display_key}", fg="green")
+    window.update_idletasks()
 
 def add_find_replace():
     find_replace_frame = tk.Frame(find_replace_container)
-    find_replace_frame.pack(fill="x", pady=5)
+    find_replace_frame.grid(sticky="ew", padx=5, pady=5)
 
     find_label = tk.Label(find_replace_frame, text="Find:")
-    find_label.pack(side=tk.LEFT, padx=5)
+    find_label.grid(row=0, column=0, sticky="w", padx=5)
     find_entry = tk.Entry(find_replace_frame)
-    find_entry.pack(side=tk.LEFT, padx=5)
+    find_entry.grid(row=0, column=1, sticky="ew", padx=5)
 
     replace_label = tk.Label(find_replace_frame, text="Replace with:")
-    replace_label.pack(side=tk.LEFT, padx=5)
+    replace_label.grid(row=0, column=2, sticky="w", padx=5)
     replace_entry = tk.Entry(find_replace_frame)
-    replace_entry.pack(side=tk.LEFT, padx=5)
+    replace_entry.grid(row=0, column=3, sticky="ew", padx=5)
 
     remove_button = tk.Button(find_replace_frame, text="Remove", command=lambda: remove_find_replace(find_replace_frame))
-    remove_button.pack(side=tk.LEFT, padx=5)
+    remove_button.grid(row=0, column=4, sticky="e", padx=5)
+
+    find_replace_frame.grid_columnconfigure(1, weight=1)
+    find_replace_frame.grid_columnconfigure(3, weight=1)
 
     find_replace_entries.append((find_entry, replace_entry, find_replace_frame))
 
@@ -218,8 +217,11 @@ def load_settings():
             update_remove_host_dropdown()
 
             # Load API key
+            api_key = settings.get("api_key", "")
             api_key_entry.delete(0, tk.END)
-            api_key_entry.insert(0, settings.get("api_key", ""))
+            api_key_entry.insert(0, api_key)
+            if api_key:
+                set_api_key(api_key)
 
             # Clear existing find/replace entries
             clear_find_replace_entries()
@@ -248,125 +250,127 @@ def reload_settings():
     messagebox.showinfo("Settings Loaded", "Settings have been reloaded from the JSON file.")
 
 def create_gui():
-    global window, find_replace_container, find_replace_entries, api_key_entry, host_list_label, remove_host_var, remove_host_menu
+    global window, find_replace_container, find_replace_entries, api_key_entry, host_list_label, remove_host_var, remove_host_menu, api_key_status_label
     window = tk.Tk()
     window.title("Transcript Processor")
     window.geometry("800x700")  # Set the initial window size
 
-    # Create a scrollbar and canvas for the main content
-    main_frame = tk.Frame(window)
-    main_frame.pack(fill="both", expand=True)
+    window.grid_rowconfigure(0, weight=1)
+    window.grid_columnconfigure(0, weight=1)
 
-    canvas = tk.Canvas(main_frame)
-    canvas.pack(side="left", fill="both", expand=True)
-
-    scrollbar = tk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
-    scrollbar.pack(side="right", fill="y")
-
-    scrollable_frame = tk.Frame(canvas)
-    scrollable_frame.bind(
-        "<Configure>",
-        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-    )
-
-    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-    canvas.configure(yscrollcommand=scrollbar.set)
+    content_frame = tk.Frame(window)
+    content_frame.grid(sticky="nsew", padx=10, pady=10)
+    
+    content_frame.grid_columnconfigure(0, weight=1)
 
     find_replace_entries = []
 
     # Group: File Selection
-    file_frame = tk.LabelFrame(scrollable_frame, text="File Selection", padx=10, pady=10)
-    file_frame.pack(padx=10, pady=10, fill="x")
+    file_frame = tk.LabelFrame(content_frame, text="File Selection", padx=10, pady=10)
+    file_frame.grid(row=0, column=0, sticky="ew")
+
+    file_frame.grid_columnconfigure(0, weight=1)
 
     label = tk.Label(file_frame, text="Select text files to process:")
-    label.pack(anchor="w")
+    label.grid(row=0, column=0, sticky="w")
 
     select_button = tk.Button(file_frame, text="Select Files", command=select_files)
-    select_button.pack(pady=5)
+    select_button.grid(row=1, column=0, pady=5)
 
     global file_label
     file_label = tk.Label(file_frame, text="No files loaded")
-    file_label.pack(anchor="w")
+    file_label.grid(row=2, column=0, sticky="w")
 
     ToolTip(file_frame, "Use this section to load the transcript files you want to process in bulk.")
 
     # Group: API Key
-    api_key_frame = tk.LabelFrame(scrollable_frame, text="API Key", padx=10, pady=10)
-    api_key_frame.pack(padx=10, pady=10, fill="x")
+    api_key_frame = tk.LabelFrame(content_frame, text="API Key", padx=10, pady=10)
+    api_key_frame.grid(row=1, column=0, sticky="ew")
+
+    api_key_frame.grid_columnconfigure(0, weight=1)
 
     api_key_label = tk.Label(api_key_frame, text="Enter your OpenAI API Key:")
-    api_key_label.pack(anchor="w")
+    api_key_label.grid(row=0, column=0, sticky="w")
 
     global api_key_entry
     api_key_entry = tk.Entry(api_key_frame, show="*")
-    api_key_entry.pack(fill="x")
+    api_key_entry.grid(row=1, column=0, sticky="ew", pady=5)
 
-    set_api_key_button = tk.Button(api_key_frame, text="Set API Key", command=set_api_key)
-    set_api_key_button.pack(pady=5)
+    set_api_key_button = tk.Button(api_key_frame, text="Set API Key", command=lambda: set_api_key(api_key_entry.get().strip()))
+    set_api_key_button.grid(row=2, column=0, pady=5)
 
-    global api_key_status_label
     api_key_status_label = tk.Label(api_key_frame, text="")
-    api_key_status_label.pack(anchor="w")
+    api_key_status_label.grid(row=3, column=0, sticky="w")
 
     ToolTip(api_key_frame, "Enter and set your OpenAI API key to enable processing with the GPT-4o-mini model.")
 
     # Group: Hosts
-    host_frame = tk.LabelFrame(scrollable_frame, text="Hosts", padx=10, pady=10)
-    host_frame.pack(padx=10, pady=10, fill="x")
+    host_frame = tk.LabelFrame(content_frame, text="Hosts", padx=10, pady=10)
+    host_frame.grid(row=2, column=0, sticky="ew")
+
+    host_frame.grid_columnconfigure(0, weight=1)
 
     host_list_label = tk.Label(host_frame, text="Hosts: " + ", ".join(hosts))
-    host_list_label.pack(anchor="w")
+    host_list_label.grid(row=0, column=0, sticky="w")
 
     host_entry_frame = tk.Frame(host_frame)
-    host_entry_frame.pack(fill="x", pady=5)
+    host_entry_frame.grid(row=1, column=0, sticky="ew", pady=5)
 
     global host_entry
     host_entry = tk.Entry(host_entry_frame)
-    host_entry.pack(side=tk.LEFT, fill="x", expand=True)
+    host_entry.grid(row=0, column=0, sticky="ew")
+
+    host_entry_frame.grid_columnconfigure(0, weight=1)
 
     add_host_button = tk.Button(host_entry_frame, text="Add Host", command=add_host)
-    add_host_button.pack(side=tk.LEFT, padx=5)
+    add_host_button.grid(row=0, column=1, padx=5)
 
     remove_host_frame = tk.Frame(host_frame)
-    remove_host_frame.pack(fill="x", pady=5)
+    remove_host_frame.grid(row=2, column=0, sticky="ew", pady=5)
+
+    remove_host_frame.grid_columnconfigure(0, weight=1)
 
     remove_host_var = tk.StringVar(host_frame)
     remove_host_var.set(hosts[0])  # Default value
 
     remove_host_menu = tk.OptionMenu(remove_host_frame, remove_host_var, *hosts)
-    remove_host_menu.pack(side=tk.LEFT, fill="x", expand=True)
+    remove_host_menu.grid(row=0, column=0, sticky="ew")
 
     remove_host_button = tk.Button(remove_host_frame, text="Remove Host", command=remove_host)
-    remove_host_button.pack(side=tk.LEFT, padx=5)
+    remove_host_button.grid(row=0, column=1, padx=5)
 
     ToolTip(host_frame, "Manage the list of hosts in the transcript, adding or removing as needed.")
 
     # Group: Find/Replace
-    find_replace_container = tk.LabelFrame(scrollable_frame, text="Find and Replace", padx=10, pady=10)
-    find_replace_container.pack(padx=10, pady=10, fill="x")
+    find_replace_container = tk.LabelFrame(content_frame, text="Find and Replace", padx=10, pady=10)
+    find_replace_container.grid(row=3, column=0, sticky="ew")
+
+    find_replace_container.grid_columnconfigure(0, weight=1)
 
     add_find_replace_button = tk.Button(find_replace_container, text="Add Find/Replace", command=add_find_replace)
-    add_find_replace_button.pack(pady=5)
+    add_find_replace_button.grid(row=0, column=0, pady=5)
 
     ToolTip(find_replace_container, "Add find/replace pairs to process specific words or phrases in the transcript.")
 
     # Group: Actions
-    actions_frame = tk.Frame(scrollable_frame, padx=10, pady=10)
-    actions_frame.pack(padx=10, pady=10, fill="x")
+    actions_frame = tk.Frame(content_frame, padx=10, pady=10)
+    actions_frame.grid(row=4, column=0, sticky="ew")
+
+    actions_frame.grid_columnconfigure(0, weight=1)
 
     save_settings_button = tk.Button(actions_frame, text="Save Settings", command=save_settings)
-    save_settings_button.pack(side=tk.LEFT, padx=5)
+    save_settings_button.grid(row=0, column=0, padx=5, sticky="w")
 
     load_json_button = tk.Button(actions_frame, text="Load from JSON", command=reload_settings)
-    load_json_button.pack(side=tk.LEFT, padx=5)
+    load_json_button.grid(row=0, column=1, padx=5, sticky="w")
 
     global status_label
     status_label = tk.Label(actions_frame, text="")
-    status_label.pack(side=tk.LEFT, padx=5)
+    status_label.grid(row=1, column=0, padx=5, sticky="w", columnspan=2)
 
     global start_button
-    start_button = tk.Button(scrollable_frame, text="Start", command=process_transcripts, state=tk.DISABLED, font=("Arial", 16), height=2, width=20)
-    start_button.pack(pady=20)
+    start_button = tk.Button(content_frame, text="Start", command=process_transcripts, state=tk.DISABLED, font=("Arial", 16), height=2, width=20)
+    start_button.grid(row=5, column=0, pady=20)
 
     ToolTip(actions_frame, "Save your settings or reload them from a JSON file. Start processing when ready.")
 
