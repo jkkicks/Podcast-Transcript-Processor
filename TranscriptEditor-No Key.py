@@ -160,18 +160,10 @@ def add_find_replace():
 
     find_replace_entries.append((find_entry, replace_entry))
 
-def save_settings():
-    settings = {
-        "hosts": hosts,
-        "api_key": api_key_entry.get().strip(),
-        "find_replace": [
-            {"find": find_entry.get().strip(), "replace": replace_entry.get().strip()}
-            for find_entry, replace_entry in find_replace_entries
-        ]
-    }
-    with open(settings_file, 'w') as f:
-        json.dump(settings, f)
-    messagebox.showinfo("Settings Saved", "Settings have been saved to the JSON file.")
+def clear_find_replace_entries():
+    for frame in find_replace_container.winfo_children():
+        frame.destroy()
+    find_replace_entries.clear()
 
 def load_settings():
     if os.path.exists(settings_file):
@@ -186,6 +178,9 @@ def load_settings():
             # Load API key
             api_key_entry.delete(0, tk.END)
             api_key_entry.insert(0, settings.get("api_key", ""))
+
+            # Clear existing find/replace entries
+            clear_find_replace_entries()
 
             # Load find/replace pairs
             for pair in settings.get("find_replace", []):
@@ -211,6 +206,7 @@ def create_gui():
     global window, find_replace_container, find_replace_entries, api_key_entry, host_list_label, remove_host_var, remove_host_menu
     window = tk.Tk()
     window.title("Transcript Processor")
+    window.geometry("800x600")  # Set the initial window size to be about twice as wide
 
     find_replace_entries = []
 
@@ -253,22 +249,27 @@ def create_gui():
     host_list_label = tk.Label(host_frame, text="Hosts: " + ", ".join(hosts))
     host_list_label.pack(anchor="w")
 
+    host_entry_frame = tk.Frame(host_frame)
+    host_entry_frame.pack(fill="x", pady=5)
+
     global host_entry
-    host_entry = tk.Entry(host_frame)
-    host_entry.pack(fill="x")
+    host_entry = tk.Entry(host_entry_frame)
+    host_entry.pack(side=tk.LEFT, fill="x", expand=True)
 
-    add_host_button = tk.Button(host_frame, text="Add Host", command=add_host)
-    add_host_button.pack(pady=5)
+    add_host_button = tk.Button(host_entry_frame, text="Add Host", command=add_host)
+    add_host_button.pack(side=tk.LEFT, padx=5)
 
-    # Remove host dropdown and button
+    remove_host_frame = tk.Frame(host_frame)
+    remove_host_frame.pack(fill="x", pady=5)
+
     remove_host_var = tk.StringVar(host_frame)
     remove_host_var.set(hosts[0])  # Default value
 
-    remove_host_menu = tk.OptionMenu(host_frame, remove_host_var, *hosts)
-    remove_host_menu.pack(pady=5)
+    remove_host_menu = tk.OptionMenu(remove_host_frame, remove_host_var, *hosts)
+    remove_host_menu.pack(side=tk.LEFT, fill="x", expand=True)
 
-    remove_host_button = tk.Button(host_frame, text="Remove Host", command=remove_host)
-    remove_host_button.pack(pady=5)
+    remove_host_button = tk.Button(remove_host_frame, text="Remove Host", command=remove_host)
+    remove_host_button.pack(side=tk.LEFT, padx=5)
 
     # Group: Find/Replace
     find_replace_container = tk.LabelFrame(window, text="Find and Replace", padx=10, pady=10)
