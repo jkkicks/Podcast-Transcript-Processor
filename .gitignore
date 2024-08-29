@@ -1,1 +1,3 @@
 transcript_processor_settings.json
+*.json
+transcript_processor_settings*
