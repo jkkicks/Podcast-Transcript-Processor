@@ -23,4 +23,4 @@ To run this script, you need to install the required Python packages. Below are 
 
 ```bash
 pip install openai
-pip install requests  # Install this only if you need to handle additional HTTP requests
+
