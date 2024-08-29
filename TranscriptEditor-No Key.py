@@ -132,6 +132,9 @@ def set_api_key():
         messagebox.showinfo("API Key Set", "Your OpenAI API key has been set.")
 
 def add_find_replace():
+    find_replace_frame = tk.Frame(find_replace_container)
+    find_replace_frame.pack(pady=5)
+
     find_label = tk.Label(find_replace_frame, text="Find:")
     find_label.pack(side=tk.LEFT, padx=5)
     find_entry = tk.Entry(find_replace_frame)
@@ -186,80 +189,82 @@ def process_transcript_thread():
         process_transcript(file_path)
 
 def create_gui():
-    global window, find_replace_frame, find_replace_entries, api_key_entry, host_list_label
+    global window, find_replace_container, find_replace_entries, api_key_entry, host_list_label
     window = tk.Tk()
     window.title("Transcript Processor")
 
     find_replace_entries = []
 
-    # Load settings from JSON file
-    load_settings()
+    # Group: File Selection
+    file_frame = tk.LabelFrame(window, text="File Selection", padx=10, pady=10)
+    file_frame.pack(padx=10, pady=10, fill="x")
 
-    # Create a label for file selection
-    label = tk.Label(window, text="Select a text file to process:")
-    label.pack(pady=10)
+    label = tk.Label(file_frame, text="Select a text file to process:")
+    label.pack(anchor="w")
 
-    # Create a button to select a file
-    select_button = tk.Button(window, text="Select File", command=select_file)
+    select_button = tk.Button(file_frame, text="Select File", command=select_file)
     select_button.pack(pady=5)
 
-    # Create a file label to show the selected file
     global file_label
-    file_label = tk.Label(window, text="No file loaded")
-    file_label.pack(pady=5)
+    file_label = tk.Label(file_frame, text="No file loaded")
+    file_label.pack(anchor="w")
 
-    # Create a frame to hold the find and replace widgets
-    find_replace_frame = tk.Frame(window)
-    find_replace_frame.pack(pady=10)
+    # Group: API Key
+    api_key_frame = tk.LabelFrame(window, text="API Key", padx=10, pady=10)
+    api_key_frame.pack(padx=10, pady=10, fill="x")
 
-    # Create a button to add more find/replace pairs
-    add_find_replace_button = tk.Button(window, text="Add Find/Replace", command=add_find_replace)
-    add_find_replace_button.pack(pady=10)
+    api_key_label = tk.Label(api_key_frame, text="Enter your OpenAI API Key:")
+    api_key_label.pack(anchor="w")
 
-    # Create a label to display the list of hosts
-    host_list_label = tk.Label(window, text="Hosts: " + ", ".join(hosts))
-    host_list_label.pack(pady=5)
-
-    # Create an entry widget to add new hosts
-    global host_entry
-    host_entry = tk.Entry(window)
-    host_entry.pack(pady=5)
-
-    # Create a button to add a new host
-    add_host_button = tk.Button(window, text="Add Host", command=add_host)
-    add_host_button.pack(pady=5)
-
-    # Create a label for the API key entry
-    api_key_label = tk.Label(window, text="Enter your OpenAI API Key:")
-    api_key_label.pack(pady=5)
-
-    # Create an entry widget for the API key
     global api_key_entry
-    api_key_entry = tk.Entry(window, show="*")  # Masked entry for API key
-    api_key_entry.pack(pady=5)
+    api_key_entry = tk.Entry(api_key_frame, show="*")
+    api_key_entry.pack(fill="x")
 
-    # Create a button to set the API key
-    set_api_key_button = tk.Button(window, text="Set API Key", command=set_api_key)
+    set_api_key_button = tk.Button(api_key_frame, text="Set API Key", command=set_api_key)
     set_api_key_button.pack(pady=5)
 
-    # Create a button to save settings to a JSON file
-    save_settings_button = tk.Button(window, text="Save Settings", command=save_settings)
-    save_settings_button.pack(pady=10)
-
-    # Create a label to show API key status
     global api_key_status_label
-    api_key_status_label = tk.Label(window, text="")
-    api_key_status_label.pack(pady=5)
+    api_key_status_label = tk.Label(api_key_frame, text="")
+    api_key_status_label.pack(anchor="w")
 
-    # Create a label to show the processing status
+    # Group: Hosts
+    host_frame = tk.LabelFrame(window, text="Hosts", padx=10, pady=10)
+    host_frame.pack(padx=10, pady=10, fill="x")
+
+    host_list_label = tk.Label(host_frame, text="Hosts: " + ", ".join(hosts))
+    host_list_label.pack(anchor="w")
+
+    global host_entry
+    host_entry = tk.Entry(host_frame)
+    host_entry.pack(fill="x")
+
+    add_host_button = tk.Button(host_frame, text="Add Host", command=add_host)
+    add_host_button.pack(pady=5)
+
+    # Group: Find/Replace
+    find_replace_container = tk.LabelFrame(window, text="Find and Replace", padx=10, pady=10)
+    find_replace_container.pack(padx=10, pady=10, fill="x")
+
+    add_find_replace_button = tk.Button(find_replace_container, text="Add Find/Replace", command=add_find_replace)
+    add_find_replace_button.pack(pady=5)
+
+    # Group: Actions
+    actions_frame = tk.Frame(window, padx=10, pady=10)
+    actions_frame.pack(padx=10, pady=10, fill="x")
+
+    save_settings_button = tk.Button(actions_frame, text="Save Settings", command=save_settings)
+    save_settings_button.pack(side=tk.LEFT, padx=5)
+
     global status_label
-    status_label = tk.Label(window, text="")
-    status_label.pack(pady=10)
+    status_label = tk.Label(actions_frame, text="")
+    status_label.pack(side=tk.LEFT, padx=5)
 
-    # Create a large "Start" button at the bottom
     global start_button
     start_button = tk.Button(window, text="Start", command=start_processing, state=tk.DISABLED, font=("Arial", 16), height=2, width=20)
     start_button.pack(pady=20)
+
+    # Load settings after defining necessary widgets
+    load_settings()
 
     # Run the GUI loop
     window.mainloop()
